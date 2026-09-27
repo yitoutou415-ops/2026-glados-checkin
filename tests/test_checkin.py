@@ -50,6 +50,19 @@ class CookieTests(unittest.TestCase):
     def test_json_token_uses_real_cookie_name(self):
         self.assertEqual(checkin.extract_cookie('{"token":"abc"}'), 'koa:sess=abc')
 
+    def test_cookie_editor_json_array_combines_session_and_signature(self):
+        raw = (
+            '[{"name":"koa:sess","value":"abc"},'
+            '{"name":"koa:sess.sig","value":"sig"}]'
+        )
+
+        self.assertEqual(checkin.extract_cookie(raw), 'koa:sess=abc; koa:sess.sig=sig')
+
+    def test_json_object_combines_session_and_signature(self):
+        raw = '{"koa:sess":"abc","koa:sess.sig":"sig"}'
+
+        self.assertEqual(checkin.extract_cookie(raw), 'koa:sess=abc; koa:sess.sig=sig')
+
     def test_missing_configuration_returns_no_accounts(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(checkin.get_cookies(), [])

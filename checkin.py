@@ -63,30 +63,66 @@ def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}")
 
+def normalize_cookie_pair(sess=None, sig=None):
+    if not sess:
+        return None
+    cookie = f'koa:sess={str(sess).strip()}'
+    if sig:
+        cookie += f'; koa:sess.sig={str(sig).strip()}'
+    return cookie
+
+
 def extract_cookie(raw: str):
-    """提取 Cookie，支持 Cookie-Editor 冒号格式"""
+    """提取 Cookie，支持 Cookie-Editor 导出的字符串或 JSON 格式"""
     if not raw:
         return None
     raw = raw.strip()
     
     # Cookie-Editor 格式 (koa:sess=xxx; koa:sess.sig=yyy)
     if 'koa:sess=' in raw or 'koa:sess.sig=' in raw:
+        if 'koa:sess.sig=' not in raw:
+            log("⚠️ Cookie 缺少 koa:sess.sig，可能会返回“没有权限”")
         return raw
         
-    # JSON
-    if raw.startswith('{'):
+    # Cookie-Editor JSON export, either a single object or a list of cookies.
+    if raw.startswith('{') or raw.startswith('['):
         try:
-            token = json.loads(raw).get('token')
-            return f'koa:sess={token}' if token else None
+            payload = json.loads(raw)
+            if isinstance(payload, list):
+                values = {
+                    item.get('name'): item.get('value')
+                    for item in payload
+                    if isinstance(item, dict)
+                }
+                return normalize_cookie_pair(values.get('koa:sess'), values.get('koa:sess.sig'))
+
+            if isinstance(payload, dict):
+                token = payload.get('token') or payload.get('koa:sess')
+                return normalize_cookie_pair(token, payload.get('koa:sess.sig'))
         except (json.JSONDecodeError, AttributeError):
             return None
         
     # JWT Token
     if raw.count('.') == 2 and '=' not in raw and len(raw) > 50:
+        log("⚠️ 只检测到 koa:sess 值，缺少 koa:sess.sig，可能会返回“没有权限”")
         return 'koa:sess=' + raw
         
     # Standard
     return raw
+
+
+def log_cookie_diagnostics(cookies):
+    log(f"🔎 检测到 {len(cookies)} 个账号 Cookie")
+    for idx, cookie in enumerate(cookies, 1):
+        has_sess = 'koa:sess=' in cookie
+        has_sig = 'koa:sess.sig=' in cookie
+        log(
+            f"🔎 账号 {idx} Cookie 检查: "
+            f"koa:sess={'yes' if has_sess else 'no'}, "
+            f"koa:sess.sig={'yes' if has_sig else 'no'}, "
+            f"length={len(cookie)}"
+        )
+
 
 def get_cookies():
     raw = os.environ.get("GLADOS_COOKIE", "")
@@ -96,7 +132,9 @@ def get_cookies():
     
     # Split by enter or &
     sep = '\n' if '\n' in raw else '&'
-    return [cookie for item in raw.split(sep) if (cookie := extract_cookie(item))]
+    cookies = [cookie for item in raw.split(sep) if (cookie := extract_cookie(item))]
+    log_cookie_diagnostics(cookies)
+    return cookies
 
 
 def is_normal_checkin_result(result):

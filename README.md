@@ -494,6 +494,65 @@ python3 checkin.py
 
 ---
 
+## 🐉 青龙面板部署教程
+
+青龙可以直接运行本项目的 `checkin.py`，无需改成专用脚本。关键是把 Cookie 配成环境变量，并安装 Python 依赖。
+
+### 1. 拉库或上传脚本
+
+在青龙的 **订阅管理** 中添加仓库：
+
+```text
+https://github.com/你的用户名/2026-glados-checkin.git
+```
+
+也可以只上传 `checkin.py` 和 `requirements.txt` 到青龙脚本目录。
+
+### 2. 安装依赖
+
+在青龙的 **依赖管理 → Python3** 中安装：
+
+```text
+requests
+```
+
+### 3. 添加环境变量
+
+在青龙的 **环境变量** 中添加：
+
+| 名称 | 值 | 必填 |
+| ---- | -- | ---- |
+| `GLADOS_COOKIE` | `koa:sess=你的长字符串; koa:sess.sig=你的短字符串` | 是 |
+| `PUSHPLUS_TOKEN` | PushPlus Token | 否 |
+| `PUSH_LEVEL` | `fail_only` 或 `all` | 否 |
+| `EXCHANGE_PLAN` | `plan500`、`plan200`、`plan100` 或 `off` | 否 |
+
+多个账号可在 `GLADOS_COOKIE` 中用 `&` 分隔：
+
+```text
+koa:sess=账号1; koa:sess.sig=签名1&koa:sess=账号2; koa:sess.sig=签名2
+```
+
+> 如果日志返回“没有权限”，优先重新复制 **完整 Cookie**：必须同时包含 `koa:sess` 和 `koa:sess.sig`，只填其中一个通常无法通过 GLaDOS 权限校验。
+
+### 4. 创建定时任务
+
+命令填写：
+
+```bash
+python3 checkin.py
+```
+
+推荐定时：
+
+```cron
+30 9 * * *
+```
+
+如果青龙任务和 GitHub Actions 同时启用，会每天重复执行。建议二选一；迁移到青龙后，可以关闭 GitHub Actions 的 schedule 或停用工作流。
+
+---
+
 ## ❄️ NixOS 服务配置
 
 本项目提供了标准的 Nix Flake，你可以直接作为 inputs 引入，系统会自动管理 Python 环境和依赖包。
